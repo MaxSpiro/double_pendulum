@@ -3,6 +3,16 @@ use std::f64::consts::PI;
 
 static G: f64 = 10f64;
 
+// Degrees
+static INITIAL_THETA_1: f64 = 15.0;
+static INITIAL_THETA_2: f64 = 45.0;
+
+static LENGTH_1: f64 = 100.0;
+static LENGTH_2: f64 = 80.0;
+
+static MASS_1: f64 = 5.0;
+static MASS_2: f64 = 5.0;
+
 fn main() {
     App::new().add_plugins(DefaultPlugins).add_startup_system(setup).add_system(system).run();
 }
@@ -20,26 +30,25 @@ fn setup(
     mut materials: ResMut<Assets<ColorMaterial>>
 ) {
     let pendulum = DoublePendulum::new(
-        0.01,
-        (45.0 * PI) / 180f64,
-        (90.0 * PI) / 180f64,
-        0.5,
-        0.2,
-        5.0,
-        5.0
+        (INITIAL_THETA_1 * PI) / 180f64,
+        (INITIAL_THETA_2 * PI) / 180f64,
+        LENGTH_1,
+        LENGTH_2,
+        MASS_1,
+        MASS_2
     );
+    let system_height = (pendulum.length1 + pendulum.length2) as f32;
     let x1 = pendulum.x1 as f32;
     let x2 = pendulum.x2 as f32;
     let y1 = pendulum.y1 as f32;
     let y2 = pendulum.y2 as f32;
-    let mut camera = Camera2dBundle::default();
-    camera.projection.scale = 0.0009;
+    let camera = Camera2dBundle::default();
     commands.spawn(camera);
     commands.spawn(pendulum);
     commands.spawn((
         Ball { x: x1, y: y1, is_end: false },
         MaterialMesh2dBundle {
-            mesh: meshes.add(shape::Circle::new(0.025).into()).into(),
+            mesh: meshes.add(shape::Circle::new(15.0).into()).into(),
             material: materials.add(ColorMaterial::from(Color::PURPLE)),
             transform: Transform::from_xyz(x1, y1, 0.0),
             ..default()
@@ -48,12 +57,19 @@ fn setup(
     commands.spawn((
         Ball { x: x2, y: y2, is_end: true },
         MaterialMesh2dBundle {
-            mesh: meshes.add(shape::Circle::new(0.025).into()).into(),
+            mesh: meshes.add(shape::Circle::new(15.0).into()).into(),
             material: materials.add(ColorMaterial::from(Color::BLUE)),
             transform: Transform::from_xyz(x2, y2, 0.0),
             ..default()
         },
     ));
+
+    commands.spawn(MaterialMesh2dBundle {
+        mesh: meshes.add(shape::Circle::new(10.0).into()).into(),
+        material: materials.add(ColorMaterial::from(Color::GREEN)),
+        transform: Transform::from_xyz(0.0, system_height, 0.0),
+        ..default()
+    });
 }
 
 fn system(
@@ -62,7 +78,7 @@ fn system(
     mut balls: Query<(&mut Ball, &mut Transform)>
 ) {
     let mut pendulum = q.single_mut();
-    pendulum.next(Some(time.delta_seconds_f64()));
+    pendulum.next(time.delta_seconds_f64() * 8.0);
     for (mut ball, mut transform) in &mut balls {
         if ball.is_end {
             ball.x = pendulum.x2 as f32;
@@ -78,13 +94,11 @@ fn system(
 
 #[derive(Debug, Component)]
 struct DoublePendulum {
-    dt: f64,
     length1: f64,
     length2: f64,
     mass1: f64,
     mass2: f64,
 
-    time: f64,
     theta1: f64,
     omega1: f64,
     alpha1: f64,
@@ -99,7 +113,6 @@ struct DoublePendulum {
 
 impl DoublePendulum {
     fn new(
-        dt: f64,
         initial_theta1: f64,
         initial_theta2: f64,
         length1: f64,
@@ -107,7 +120,6 @@ impl DoublePendulum {
         mass1: f64,
         mass2: f64
     ) -> DoublePendulum {
-        assert!(dt > 0f64);
         assert!(mass1 > 0f64);
         assert!(mass2 > 0f64);
         assert!(length1 > 0f64);
@@ -115,12 +127,10 @@ impl DoublePendulum {
         let system_height = length1 + length2;
         let x1 = length1 * initial_theta1.sin();
         DoublePendulum {
-            dt,
             length1,
             length2,
             mass1,
             mass2,
-            time: 0f64,
             theta1: initial_theta1,
             omega1: 0f64,
             alpha1: alpha1(
@@ -152,15 +162,11 @@ impl DoublePendulum {
         }
     }
 
-    fn next(&mut self, dt: Option<f64>) {
-        if let Some(dt) = dt {
-            self.dt = dt;
-        }
-        self.time = self.time + self.dt;
-        self.omega1 = self.omega1 + self.alpha1 * self.dt;
-        self.theta1 = self.theta1 + self.omega1 * self.dt + 0.5 * self.alpha1 * self.dt.powi(2);
-        self.omega2 = self.omega2 + self.alpha2 * self.dt;
-        self.theta2 = self.theta2 + self.omega2 * self.dt + 0.5 * self.alpha2 * self.dt.powi(2);
+    fn next(&mut self, dt: f64) {
+        self.omega1 = self.omega1 + self.alpha1 * dt;
+        self.theta1 = self.theta1 + self.omega1 * dt + 0.5 * self.alpha1 * dt.powi(2);
+        self.omega2 = self.omega2 + self.alpha2 * dt;
+        self.theta2 = self.theta2 + self.omega2 * dt + 0.5 * self.alpha2 * dt.powi(2);
         self.alpha1 = alpha1(
             self.mass1,
             self.mass2,
