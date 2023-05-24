@@ -4,14 +4,17 @@ use std::f64::consts::PI;
 static G: f64 = 10f64;
 
 // Degrees
-static INITIAL_THETA_1: f64 = 15.0;
-static INITIAL_THETA_2: f64 = 45.0;
+static INITIAL_THETA_1: f64 = 80.0;
+static INITIAL_THETA_2: f64 = 10.0;
 
-static LENGTH_1: f64 = 100.0;
-static LENGTH_2: f64 = 80.0;
+static LENGTH_1: f64 = 200.0;
+static LENGTH_2: f64 = 500.0;
 
 static MASS_1: f64 = 5.0;
-static MASS_2: f64 = 5.0;
+static MASS_2: f64 = 0.01;
+
+// Higher values will make the simulation faster
+static TIME_MULTIPLIER: f64 = 16.0;
 
 fn main() {
     App::new().add_plugins(DefaultPlugins).add_startup_system(setup).add_system(system).run();
@@ -42,13 +45,18 @@ fn setup(
     let x2 = pendulum.x2 as f32;
     let y1 = pendulum.y1 as f32;
     let y2 = pendulum.y2 as f32;
-    let camera = Camera2dBundle::default();
+    let mut camera = Camera2dBundle::default();
+    camera.transform.translation.y = system_height / 3.0;
+    println!("System height: {}", system_height);
+    println!("Camera height: {}", camera.transform.translation.y);
+
+    // camera.transform.translation.y = system_height;
     commands.spawn(camera);
     commands.spawn(pendulum);
     commands.spawn((
         Ball { x: x1, y: y1, is_end: false },
         MaterialMesh2dBundle {
-            mesh: meshes.add(shape::Circle::new(15.0).into()).into(),
+            mesh: meshes.add(shape::Circle::new(30.0).into()).into(),
             material: materials.add(ColorMaterial::from(Color::PURPLE)),
             transform: Transform::from_xyz(x1, y1, 0.0),
             ..default()
@@ -57,7 +65,7 @@ fn setup(
     commands.spawn((
         Ball { x: x2, y: y2, is_end: true },
         MaterialMesh2dBundle {
-            mesh: meshes.add(shape::Circle::new(15.0).into()).into(),
+            mesh: meshes.add(shape::Circle::new(30.0).into()).into(),
             material: materials.add(ColorMaterial::from(Color::BLUE)),
             transform: Transform::from_xyz(x2, y2, 0.0),
             ..default()
@@ -78,7 +86,7 @@ fn system(
     mut balls: Query<(&mut Ball, &mut Transform)>
 ) {
     let mut pendulum = q.single_mut();
-    pendulum.next(time.delta_seconds_f64() * 8.0);
+    pendulum.next(time.delta_seconds_f64() * TIME_MULTIPLIER);
     for (mut ball, mut transform) in &mut balls {
         if ball.is_end {
             ball.x = pendulum.x2 as f32;
